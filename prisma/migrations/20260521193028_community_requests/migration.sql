@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `communities` ADD COLUMN `admin_review_note` TEXT NULL,
+    ADD COLUMN `reviewed_at` DATETIME(3) NULL,
+    ADD COLUMN `reviewed_by_admin_id` INTEGER NULL,
+    ADD COLUMN `scope` ENUM('COUNTRY', 'STATE', 'CITY') NOT NULL DEFAULT 'COUNTRY',
+    MODIFY `status` ENUM('PENDING', 'ACTIVE', 'REJECTED', 'SUSPENDED', 'REMOVED') NOT NULL DEFAULT 'PENDING';

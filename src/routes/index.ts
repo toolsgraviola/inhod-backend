@@ -1,0 +1,30 @@
+import { Router } from "express";
+import { adminRouter } from "../modules/admin/admin.routes.js";
+import { authRouter } from "../modules/auth/auth.routes.js";
+import { communitiesRouter } from "../modules/communities/communities.routes.js";
+import { eventsRouter } from "../modules/events/events.routes.js";
+import { healthRouter } from "../modules/health/health.routes.js";
+import { locationsRouter } from "../modules/locations/locations.routes.js";
+import { paymentsRouter } from "../modules/payments/payments.routes.js";
+import { postsRouter } from "../modules/posts/posts.routes.js";
+import { reportsRouter } from "../modules/reports/reports.routes.js";
+import { settingsRouter } from "../modules/settings/settings.routes.js";
+import { uploadsRouter } from "../modules/uploads/uploads.routes.js";
+import { usersRouter } from "../modules/users/users.routes.js";
+import { walletsRouter } from "../modules/wallets/wallets.routes.js";
+
+export const apiRouter = Router();
+
+apiRouter.use("/health", healthRouter);
+apiRouter.use("/auth", authRouter);
+apiRouter.use("/", usersRouter);
+apiRouter.use("/locations", locationsRouter);
+apiRouter.use("/communities", communitiesRouter);
+apiRouter.use("/posts", postsRouter);
+apiRouter.use("/events", eventsRouter);
+apiRouter.use("/payments", paymentsRouter);
+apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/uploads", uploadsRouter);
+apiRouter.use("/", walletsRouter);
+apiRouter.use("/reports", reportsRouter);
+apiRouter.use("/admin", adminRouter);

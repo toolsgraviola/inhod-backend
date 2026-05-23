@@ -1,0 +1,744 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BLOCKED
+  DELETED
+}
+
+enum CommunityStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+  SUSPENDED
+  REMOVED
+}
+
+enum CommunityScope {
+  COUNTRY
+  STATE
+  CITY
+}
+
+enum CommunityVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  LEFT
+  BANNED
+}
+
+enum ModeratorRole {
+  FOUNDER
+  MODERATOR
+}
+
+enum PostStatus {
+  PUBLISHED
+  HIDDEN
+  REMOVED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELED
+  COMPLETED
+}
+
+enum ChatType {
+  DIRECT
+  COMMUNITY
+  EVENT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+  REVERSAL
+}
+
+enum ReportTargetType {
+  USER
+  POST
+  COMMENT
+  COMMUNITY
+  EVENT
+  MESSAGE
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+model User {
+  id                   Int                  @id @default(autoincrement())
+  firebaseUid          String               @unique @map("firebase_uid")
+  fullName             String?              @map("full_name")
+  mobileNumber         String               @unique @map("mobile_number")
+  nationalityCountryId Int?                 @map("nationality_country_id")
+  nationalityStateId   Int?                 @map("nationality_state_id")
+  nationalityCityId    Int?                 @map("nationality_city_id")
+  currentCountryId     Int?                 @map("current_country_id")
+  stateId              Int?                 @map("state_id")
+  cityId               Int?                 @map("city_id")
+  profession           String?
+  profilePhotoUrl      String?              @map("profile_photo_url")
+  status               UserStatus           @default(ACTIVE)
+  profileCompletedAt   DateTime?            @map("profile_completed_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+  currentCountry       Country?             @relation("UserCurrentCountry", fields: [currentCountryId], references: [id])
+  nationalityCountry   Country?             @relation("UserNationality", fields: [nationalityCountryId], references: [id])
+  nationalityState     State?               @relation("UserNationalityState", fields: [nationalityStateId], references: [id])
+  nationalityCity      City?                @relation("UserNationalityCity", fields: [nationalityCityId], references: [id])
+  state                State?               @relation("UserCurrentState", fields: [stateId], references: [id])
+  city                 City?                @relation("UserCurrentCity", fields: [cityId], references: [id])
+  languages            UserLanguage[]
+  interests            UserInterest[]
+  createdCommunities   Community[]          @relation("CommunityFounder")
+  memberships          CommunityMember[]
+  moderatorRoles       CommunityModerator[]
+  posts                Post[]
+  comments             Comment[]
+  eventsCreated        Event[]
+  eventAttendances     EventAttendee[]
+  payments             Payment[]
+  wallet               Wallet?
+  reports              Report[]             @relation("Reporter")
+  notifications        Notification[]
+  deviceTokens         DeviceToken[]
+  chatParticipants     ChatParticipant[]
+  messages             Message[]
+
+  @@index([currentCountryId, stateId, cityId])
+  @@index([nationalityCountryId, nationalityStateId, nationalityCityId], map: "users_origin_location_idx")
+  @@map("users")
+}
+
+model UserLanguage {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  languageCode String   @map("language_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, languageCode])
+  @@map("user_languages")
+}
+
+model Language {
+  id         Int      @id @default(autoincrement())
+  code       String   @unique
+  name       String   @unique
+  nativeName String?  @map("native_name")
+  status     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("languages")
+}
+
+model Interest {
+  id        Int            @id @default(autoincrement())
+  name      String         @unique
+  status    Boolean        @default(true)
+  users     UserInterest[]
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@map("interests")
+}
+
+model UserInterest {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  interestId Int      @map("interest_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id])
+  interest   Interest @relation(fields: [interestId], references: [id])
+
+  @@unique([userId, interestId])
+  @@map("user_interests")
+}
+
+model Country {
+  id               Int         @id @default(autoincrement())
+  name             String
+  isoCode          String      @unique @map("iso_code")
+  currencyCode     String      @map("currency_code")
+  phoneCode        String?     @map("phone_code")
+  status           Boolean     @default(true)
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  states           State[]
+  cities           City[]
+  currentUsers     User[]      @relation("UserCurrentCountry")
+  nationalityUsers User[]      @relation("UserNationality")
+  communities      Community[]
+  pricingRules     PricingRule[]
+
+  @@map("countries")
+}
+
+model State {
+  id          Int         @id @default(autoincrement())
+  countryId   Int         @map("country_id")
+  name        String
+  code        String?
+  status      Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  country     Country     @relation(fields: [countryId], references: [id])
+  cities      City[]
+  currentUsers User[]      @relation("UserCurrentState")
+  nationalityUsers User[]  @relation("UserNationalityState")
+  communities Community[]
+
+  @@unique([countryId, name])
+  @@index([countryId])
+  @@map("states")
+}
+
+model City {
+  id          Int         @id @default(autoincrement())
+  countryId   Int         @map("country_id")
+  stateId     Int?        @map("state_id")
+  name        String
+  status      Boolean     @default(true)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  country     Country     @relation(fields: [countryId], references: [id])
+  state       State?      @relation(fields: [stateId], references: [id])
+  currentUsers User[]      @relation("UserCurrentCity")
+  nationalityUsers User[]  @relation("UserNationalityCity")
+  communities Community[]
+  events      Event[]
+
+  @@unique([countryId, stateId, name])
+  @@index([countryId, stateId])
+  @@map("cities")
+}
+
+model CommunityCategory {
+  id          Int         @id @default(autoincrement())
+  name        String
+  slug        String      @unique
+  status      Boolean     @default(true)
+  communities Community[]
+
+  @@map("community_categories")
+}
+
+model Community {
+  id               Int                  @id @default(autoincrement())
+  founderUserId    Int                  @map("founder_user_id")
+  categoryId       Int                  @map("category_id")
+  countryId        Int                  @map("country_id")
+  stateId          Int?                 @map("state_id")
+  cityId           Int?                 @map("city_id")
+  scope            CommunityScope       @default(COUNTRY)
+  name             String
+  description      String               @db.Text
+  bannerUrl        String?              @map("banner_url")
+  rules            String?              @db.Text
+  visibility       CommunityVisibility  @default(PUBLIC)
+  status           CommunityStatus      @default(PENDING)
+  approvalRequired Boolean              @default(false) @map("approval_required")
+  joinFeeUsd       Decimal              @default(1.00) @map("join_fee_usd") @db.Decimal(10, 2)
+  creationMode     String               @default("barter") @map("creation_mode")
+  creationFeeUsd   Decimal?             @map("creation_fee_usd") @db.Decimal(10, 2)
+  barterSharePercent Decimal?           @map("barter_share_percent") @db.Decimal(5, 2)
+  barterMemberLimit Int?                @map("barter_member_limit")
+  adminReviewNote  String?              @map("admin_review_note") @db.Text
+  reviewedAt       DateTime?            @map("reviewed_at")
+  reviewedByAdminId Int?                @map("reviewed_by_admin_id")
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  founder          User                 @relation("CommunityFounder", fields: [founderUserId], references: [id])
+  category         CommunityCategory    @relation(fields: [categoryId], references: [id])
+  country          Country              @relation(fields: [countryId], references: [id])
+  state            State?               @relation(fields: [stateId], references: [id])
+  city             City?                @relation(fields: [cityId], references: [id])
+  settings         CommunitySetting?
+  members          CommunityMember[]
+  moderators       CommunityModerator[]
+  posts            Post[]
+  events           Event[]
+  payments         Payment[]
+  walletEntries    WalletTransaction[]
+
+  @@index([countryId, stateId, cityId])
+  @@index([categoryId, status])
+  @@map("communities")
+}
+
+model CommunitySetting {
+  id                   Int       @id @default(autoincrement())
+  communityId           Int       @unique @map("community_id")
+  postApprovalRequired  Boolean   @default(false) @map("post_approval_required")
+  rejoinPolicy          String    @default("pay_every_time") @map("rejoin_policy")
+  rejoinFreeDays        Int?      @map("rejoin_free_days")
+  allowEventChat        Boolean   @default(true) @map("allow_event_chat")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  community             Community @relation(fields: [communityId], references: [id])
+
+  @@map("community_settings")
+}
+
+model CommunityMember {
+  id          Int              @id @default(autoincrement())
+  communityId Int              @map("community_id")
+  userId      Int              @map("user_id")
+  status      MembershipStatus @default(PENDING)
+  joinedAt    DateTime?        @map("joined_at")
+  leftAt      DateTime?        @map("left_at")
+  bannedAt    DateTime?        @map("banned_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  community   Community        @relation(fields: [communityId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+
+  @@unique([communityId, userId])
+  @@index([userId, status])
+  @@map("community_members")
+}
+
+model CommunityModerator {
+  id             Int           @id @default(autoincrement())
+  communityId    Int           @map("community_id")
+  userId         Int           @map("user_id")
+  role           ModeratorRole @default(MODERATOR)
+  status         Boolean       @default(true)
+  addedByUserId  Int?          @map("added_by_user_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  community      Community     @relation(fields: [communityId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+
+  @@unique([communityId, userId])
+  @@map("community_moderators")
+}
+
+model Post {
+  id             Int            @id @default(autoincrement())
+  userId         Int            @map("user_id")
+  communityId    Int?           @map("community_id")
+  scope          String         @default("community")
+  text           String?        @db.Text
+  linkUrl        String?        @map("link_url") @db.VarChar(2048)
+  linkTitle      String?        @map("link_title") @db.VarChar(500)
+  linkDescription String?       @map("link_description") @db.Text
+  linkImageUrl   String?        @map("link_image_url") @db.VarChar(2048)
+  linkSiteName   String?        @map("link_site_name") @db.VarChar(255)
+  status         PostStatus     @default(PUBLISHED)
+  approvalStatus ApprovalStatus @default(APPROVED) @map("approval_status")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  user           User           @relation(fields: [userId], references: [id])
+  community      Community?     @relation(fields: [communityId], references: [id])
+  media          PostMedia[]
+  comments       Comment[]
+  likes          PostLike[]
+  saves          SavedPost[]
+
+  @@index([communityId, createdAt])
+  @@index([scope, createdAt])
+  @@map("posts")
+}
+
+model PostMedia {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  mediaType String   @map("media_type")
+  storageKey String  @map("storage_key")
+  url       String
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@map("post_media")
+}
+
+model Comment {
+  id              Int       @id @default(autoincrement())
+  postId          Int       @map("post_id")
+  userId          Int       @map("user_id")
+  parentCommentId Int?      @map("parent_comment_id")
+  text            String    @db.Text
+  status          String    @default("published")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  post            Post      @relation(fields: [postId], references: [id])
+  user            User      @relation(fields: [userId], references: [id])
+  parent          Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies         Comment[] @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+  @@map("comments")
+}
+
+model PostLike {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+model SavedPost {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("saved_posts")
+}
+
+model Event {
+  id            Int             @id @default(autoincrement())
+  communityId   Int             @map("community_id")
+  creatorUserId Int             @map("creator_user_id")
+  cityId        Int?            @map("city_id")
+  title         String
+  description   String          @db.Text
+  eventType     String          @map("event_type")
+  bannerUrl     String?         @map("banner_url")
+  startsAt      DateTime        @map("starts_at")
+  endsAt        DateTime?       @map("ends_at")
+  timezone      String
+  locationName  String?         @map("location_name")
+  address       String?         @db.Text
+  directions    String?         @db.Text
+  mapPlaceId    String?         @map("map_place_id")
+  latitude      Decimal?        @db.Decimal(10, 7)
+  longitude     Decimal?        @db.Decimal(10, 7)
+  capacity      Int?
+  entryFeeUsd   Decimal         @default(0.00) @map("entry_fee_usd") @db.Decimal(10, 2)
+  recurringSeriesId String?     @map("recurring_series_id") @db.VarChar(64)
+  recurrenceRule String?        @map("recurrence_rule") @db.VarChar(255)
+  recurrenceLabel String?       @map("recurrence_label") @db.VarChar(255)
+  recurrenceIndex Int?          @map("recurrence_index")
+  status        EventStatus     @default(PUBLISHED)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  community     Community       @relation(fields: [communityId], references: [id])
+  creator       User            @relation(fields: [creatorUserId], references: [id])
+  city          City?           @relation(fields: [cityId], references: [id])
+  attendees     EventAttendee[]
+  chats         Chat[]
+
+  @@index([communityId, startsAt])
+  @@index([cityId, startsAt])
+  @@index([recurringSeriesId])
+  @@map("events")
+}
+
+model EventAttendee {
+  id          Int       @id @default(autoincrement())
+  eventId     Int       @map("event_id")
+  userId      Int       @map("user_id")
+  paymentId   Int?      @map("payment_id")
+  status      String    @default("going")
+  rsvpAt      DateTime  @default(now()) @map("rsvp_at")
+  cancelledAt DateTime? @map("cancelled_at")
+  event       Event     @relation(fields: [eventId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  payment     Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, userId])
+  @@index([paymentId])
+  @@map("event_attendees")
+}
+
+model Chat {
+  id              Int               @id @default(autoincrement())
+  chatType        ChatType          @map("chat_type")
+  communityId     Int?              @map("community_id")
+  eventId         Int?              @map("event_id")
+  createdByUserId Int?              @map("created_by_user_id")
+  status          String            @default("active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  event           Event?            @relation(fields: [eventId], references: [id])
+  participants    ChatParticipant[]
+  messages        Message[]
+
+  @@index([chatType, communityId, eventId])
+  @@map("chats")
+}
+
+model ChatParticipant {
+  id                Int       @id @default(autoincrement())
+  chatId            Int       @map("chat_id")
+  userId            Int       @map("user_id")
+  role              String    @default("member")
+  status            String    @default("active")
+  lastReadMessageId Int?      @map("last_read_message_id")
+  joinedAt          DateTime  @default(now()) @map("joined_at")
+  chat              Chat      @relation(fields: [chatId], references: [id])
+  user              User      @relation(fields: [userId], references: [id])
+
+  @@unique([chatId, userId])
+  @@map("chat_participants")
+}
+
+model Message {
+  id           Int      @id @default(autoincrement())
+  chatId       Int      @map("chat_id")
+  senderUserId Int      @map("sender_user_id")
+  messageType  String   @default("text") @map("message_type")
+  body         String?  @db.Text
+  mediaUrl     String?  @map("media_url")
+  status       String   @default("sent")
+  createdAt    DateTime @default(now()) @map("created_at")
+  chat         Chat     @relation(fields: [chatId], references: [id])
+  sender       User     @relation(fields: [senderUserId], references: [id])
+  reads        MessageRead[]
+
+  @@index([chatId, createdAt])
+  @@map("messages")
+}
+
+model MessageRead {
+  id        Int      @id @default(autoincrement())
+  messageId Int      @map("message_id")
+  userId    Int      @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+  message   Message  @relation(fields: [messageId], references: [id])
+
+  @@unique([messageId, userId])
+  @@map("message_reads")
+}
+
+model Payment {
+  id               Int             @id @default(autoincrement())
+  userId           Int             @map("user_id")
+  communityId      Int?            @map("community_id")
+  gateway          String
+  gatewayPaymentId String?         @unique @map("gateway_payment_id")
+  amount           Decimal         @db.Decimal(12, 2)
+  currency         String
+  amountUsd        Decimal?        @map("amount_usd") @db.Decimal(12, 2)
+  status           PaymentStatus   @default(PENDING)
+  metadata         Json?
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  user             User            @relation(fields: [userId], references: [id])
+  community        Community?      @relation(fields: [communityId], references: [id])
+  events           PaymentEvent[]
+  eventAttendances EventAttendee[]
+  walletEntries    WalletTransaction[]
+
+  @@index([userId, status])
+  @@index([communityId, status])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id             Int       @id @default(autoincrement())
+  paymentId      Int?      @map("payment_id")
+  gatewayEventId String    @unique @map("gateway_event_id")
+  eventType      String    @map("event_type")
+  rawPayload     Json      @map("raw_payload")
+  processedAt    DateTime? @map("processed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  payment        Payment?  @relation(fields: [paymentId], references: [id])
+
+  @@map("payment_events")
+}
+
+model Wallet {
+  id               Int                 @id @default(autoincrement())
+  userId           Int                 @unique @map("user_id")
+  currency         String              @default("USD")
+  pendingBalance   Decimal             @default(0.00) @map("pending_balance") @db.Decimal(12, 2)
+  availableBalance Decimal             @default(0.00) @map("available_balance") @db.Decimal(12, 2)
+  withdrawnBalance Decimal             @default(0.00) @map("withdrawn_balance") @db.Decimal(12, 2)
+  status           String              @default("active")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  user             User                @relation(fields: [userId], references: [id])
+  transactions     WalletTransaction[]
+  payoutRequests   PayoutRequest[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id              Int                   @id @default(autoincrement())
+  walletId        Int                   @map("wallet_id")
+  paymentId       Int?                  @map("payment_id")
+  communityId     Int?                  @map("community_id")
+  transactionType WalletTransactionType @map("transaction_type")
+  amount          Decimal               @db.Decimal(12, 2)
+  currency        String
+  status          String                @default("pending")
+  availableAt     DateTime?             @map("available_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  wallet          Wallet                @relation(fields: [walletId], references: [id])
+  payment         Payment?              @relation(fields: [paymentId], references: [id])
+  community       Community?            @relation(fields: [communityId], references: [id])
+
+  @@index([walletId, createdAt])
+  @@map("wallet_transactions")
+}
+
+model PayoutRequest {
+  id                Int       @id @default(autoincrement())
+  walletId          Int       @map("wallet_id")
+  userId            Int       @map("user_id")
+  amount            Decimal   @db.Decimal(12, 2)
+  currency          String
+  payoutMethod      String?   @map("payout_method")
+  status            String    @default("pending")
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  reviewedByAdminId Int?      @map("reviewed_by_admin_id")
+  reviewedAt        DateTime? @map("reviewed_at")
+  wallet            Wallet    @relation(fields: [walletId], references: [id])
+
+  @@index([userId, status])
+  @@map("payout_requests")
+}
+
+model Report {
+  id             Int              @id @default(autoincrement())
+  reporterUserId Int              @map("reporter_user_id")
+  targetType     ReportTargetType @map("target_type")
+  targetId       Int              @map("target_id")
+  reason         String
+  details        String?          @db.Text
+  status         ReportStatus     @default(OPEN)
+  assignedAdminId Int?            @map("assigned_admin_id")
+  resolvedAt     DateTime?        @map("resolved_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  reporter       User             @relation("Reporter", fields: [reporterUserId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+model UserBlock {
+  id            Int      @id @default(autoincrement())
+  blockerUserId Int      @map("blocker_user_id")
+  blockedUserId Int      @map("blocked_user_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([blockerUserId, blockedUserId])
+  @@map("user_blocks")
+}
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  name         String
+  passwordHash String    @map("password_hash")
+  role         String    @default("super_admin")
+  status       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin_users")
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  type      String
+  title     String
+  body      String
+  data      Json?     @map("data_json")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model DeviceToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  platform   String
+  token      String    @unique
+  status     String    @default("active")
+  lastSeenAt DateTime? @map("last_seen_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@map("device_tokens")
+}
+
+model ExchangeRate {
+  id             Int      @id @default(autoincrement())
+  baseCurrency   String   @map("base_currency")
+  targetCurrency String   @map("target_currency")
+  rate           Decimal  @db.Decimal(18, 8)
+  provider       String
+  effectiveAt    DateTime @map("effective_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([baseCurrency, targetCurrency, effectiveAt])
+  @@map("exchange_rates")
+}
+
+model PricingRule {
+  id              Int      @id @default(autoincrement())
+  countryId       Int?     @map("country_id")
+  baseFeeUsd      Decimal  @default(1.00) @map("base_fee_usd") @db.Decimal(10, 2)
+  platformPercent Decimal  @default(50.00) @map("platform_percent") @db.Decimal(5, 2)
+  founderPercent  Decimal  @default(50.00) @map("founder_percent") @db.Decimal(5, 2)
+  status          String   @default("active")
+  effectiveAt     DateTime @default(now()) @map("effective_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  country         Country? @relation(fields: [countryId], references: [id])
+
+  @@unique([countryId, status])
+  @@index([countryId, status])
+  @@map("pricing_rules")
+}
+
+model AdminSetting {
+  id               Int      @id @default(autoincrement())
+  key              String   @unique
+  value            Json     @map("value_json")
+  updatedByAdminId Int?     @map("updated_by_admin_id")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_settings")
+}
